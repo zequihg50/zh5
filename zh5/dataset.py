@@ -343,9 +343,10 @@ class ChunkedDataset(Dataset):
 
         # init the btree chunk cache
         self._btree_idx = {}
-        for chunk in self.btree.inspect_chunks():
-            chunk_offset = chunk["chunk_offset"]
-            self._btree_idx[chunk_offset] = (chunk["offset"], chunk["length"])
+        if self.address is not None: # non initialized dataset
+            for chunk in self.btree.inspect_chunks():
+                chunk_offset = chunk["chunk_offset"]
+                self._btree_idx[chunk_offset] = (chunk["offset"], chunk["length"])
 
         # chunk reader
         if self._f.name.startswith("http://") or self._f.name.startswith("https://"):
