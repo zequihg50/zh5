@@ -123,6 +123,8 @@ class LinkMessage(Link):
         if self._link_type == 0:
             return self._link_information
 
+        raise NotImplementedError("Link type not implemented.")
+
     def __str__(self):
         return f"LinkMessage(type={self._link_type}, name={self.name})"
 

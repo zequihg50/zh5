@@ -26,6 +26,17 @@ class Basic(unittest.TestCase):
             f.create_dataset("2d", shape=(10, 10), chunks=(3, 3), compression="gzip", compression_opts=9)
             f["2d"][...] = np.arange(100).reshape((10, 10))
 
+    @staticmethod
+    def create_vds(name):
+        with h5py.File(name, "w") as f:
+            f.create_dataset("2d", dtype="i4", shape=(10, 10), chunks=(3, 3), compression="gzip", compression_opts=9)
+            f["2d"][...] = np.arange(100).reshape((10, 10))
+
+            vs = h5py.VirtualSource(name, "2d", shape=(10, 10))
+            vl = h5py.VirtualLayout(shape=vs.shape, dtype=f["2d"].dtype)
+            vl[...] = vs[...]
+            f.create_virtual_dataset("vds", vl)
+
     def test_1d(self):
         NAME = "1d.h5"
         Basic.create_1d(NAME)
@@ -51,8 +62,19 @@ class Basic(unittest.TestCase):
         self.assertEqual(f["2d"][0, 0], 0)
         assert_array_equal(f["2d"][3:, 6:9], arr[3:, 6:9])
         assert_array_equal(f["2d"][8:, 8:], arr[-2:, -2:])
+        assert_array_equal(f["2d"][:3,:3], arr[:3, :3])
         # assert_array_equal(f["2d"][-2:, -2:], arr[-2:, -2:])
         f.close()
+
+        os.remove(NAME)
+
+    def test_vds(self):
+        NAME = "VDS.h5"
+        Basic.create_vds(NAME)
+
+        f = zh5.File(NAME)
+        print(list(f))
+        print(f["vds"])
 
         os.remove(NAME)
 

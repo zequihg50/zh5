@@ -40,6 +40,30 @@ class DataLayoutMessageV3:
         return self._properties_offset
 
 
+class DataLayoutMessageV4:
+    def __init__(self, fh, offset):
+        self._fh = fh
+        self._offset = offset
+
+        fh.seek(offset)
+        byts = fh.read(2)
+        self._properties_offset = fh.tell()
+        assert byts[0] == self.version
+        self._layout_class = byts[1]
+
+    @property
+    def version(self):
+        return 4
+
+    @property
+    def layout_class(self):
+        return self._layout_class
+
+    @property
+    def properties_offset(self):
+        return self._properties_offset
+
+
 class DataspaceMessage:
     def __init__(self, file, offset):
         self._f = file
@@ -193,7 +217,7 @@ class ContiguousDataset(Dataset):
 
         normalized_slice = self._normalize_hyperslab(item)
         if self._dtype.is_memmap:
-            if self._f.name.startswith("https://"): # ToDo
+            if self._f.name.startswith("https://"):  # ToDo
                 fremote = HTTPRangeReader(self._f.raw_name)
                 fremote.seek(self._f.project_chunk(self._address))
                 buff = fremote.read(self._size)
@@ -343,7 +367,7 @@ class ChunkedDataset(Dataset):
 
         # init the btree chunk cache
         self._btree_idx = {}
-        if self.address is not None: # non initialized dataset
+        if self.address is not None:  # non initialized dataset
             for chunk in self.btree.inspect_chunks():
                 chunk_offset = chunk["chunk_offset"]
                 self._btree_idx[chunk_offset] = (chunk["offset"], chunk["length"])

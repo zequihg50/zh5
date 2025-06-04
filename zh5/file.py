@@ -5,10 +5,11 @@ from collections import OrderedDict
 
 from zh5.remote import HTTPRangeReader
 from zh5.attr import AttributeMessage
-from zh5.dataset import DataspaceMessage, DataLayoutMessageV3, ChunkedDataset, ContiguousDataset
+from zh5.dataset import DataspaceMessage, DataLayoutMessageV3, ChunkedDataset, ContiguousDataset, DataLayoutMessageV4
 from zh5.heap import LocalHeap, GlobalHeap
 from zh5.link import LinkMessage, LinkInfoMessage, SimpleLink
 from zh5.tree import BtreeV1Group
+from zh5.vds import VirtualDataset
 
 SIGNATURE = b"\x89HDF\r\n\x1a\n"
 
@@ -920,7 +921,18 @@ class Group:
                     is_dataset = True
                     dataspace = DataspaceMessage(self._f, m["offset"])
                 elif m["type"] == 0x0008:  # layout message
-                    layout = DataLayoutMessageV3(self._f, m["offset"])
+                    self._f.seek(m["offset"])
+                    version = int.from_bytes(self._f.read(1))
+                    if version == 1:
+                        raise NotImplementedError
+                    elif version == 2:
+                        raise NotImplementedError
+                    elif version == 3:
+                        layout = DataLayoutMessageV3(self._f, m["offset"])
+                    elif version == 4:
+                        layout = DataLayoutMessageV4(self._f, m["offset"])
+                    else:
+                        raise ValueError("Unknown Data Layout version.")
 
             dataset = None
             if is_dataset:
@@ -928,10 +940,14 @@ class Group:
                     dataset = ChunkedDataset(self._f, oh, name=item, dataspace=dataspace, layout=layout)
                 elif layout.layout_class == 1:
                     dataset = ContiguousDataset(self._f, oh, name=item, dataspace=dataspace, layout=layout)
+                elif layout.layout_class == 3:
+                    dataset = VirtualDataset(self._f, oh, name=item, dataspace=dataspace, layout=layout)
                 else:
                     raise ValueError(f"Layout class not supported ({layout.layout_class}).")
 
             return dataset
+
+        raise ValueError("Error, only str implemented for __getitem__")
 
     def __iter__(self):
         return (link.name for link in self.links())
