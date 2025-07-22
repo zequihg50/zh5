@@ -5,6 +5,7 @@ import urllib.request
 import aiohttp
 import numpy as np
 
+from zh5.attr import AttributeMessage
 from zh5.codecs import FilterPipelineMessageV1, FilterPipelineMessageV2
 from zh5.dtypes import DatatypeMessage, FloatDatatype, VLStringDatatype, FixedPointDatatype
 from zh5.tree import BtreeV1Chunk
@@ -131,6 +132,15 @@ class Dataset:
 
                     break
         return self._dtype.dtype
+    
+    @property
+    def attrs(self):
+        d = {}
+        for msg in self._do.msgs():
+            if msg["type"] == 12:
+                attr = AttributeMessage(self._f, msg['offset'], msg['size'])
+                d[attr.name] = attr.value
+        return d
 
     def msgs(self):
         for m in self._do:
@@ -464,7 +474,7 @@ class ChunkedDataset(Dataset):
         padded_shape = tuple(chunks.max(axis=0, initial=0) -
                              chunks.min(axis=0, initial=max(self.shape)) +
                              np.array(self.chunkshape))
-        data = np.empty(padded_shape, dtype="f4")
+        data = np.empty(padded_shape, dtype=self.dtype)
         chunk_origin = chunks.min(axis=0, initial=max(self.shape))
 
         matched_chunks = []

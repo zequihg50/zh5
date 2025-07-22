@@ -20,6 +20,13 @@ class Basic(unittest.TestCase):
             f["1dchunks"][...] = list(range(10))
             f["1dfilters"][...] = list(range(10))
 
+            f["1d"].attrs["string"] = "test"
+            f["1d"].attrs["bytes"] =  b"test"
+            f["1d"].attrs["int"] = 1
+            f["1d"].attrs["float"] = .1
+
+            f.attrs["bytes"] = b"global"
+
     @staticmethod
     def create_2d(name):
         with h5py.File(name, "w") as f:
@@ -64,6 +71,22 @@ class Basic(unittest.TestCase):
         assert_array_equal(list(f), ['1d', '1dchunks', '1dfilters'])
         f.close()
         os.remove(NAME)
+
+    def test_attr(self):
+        NAME = "1d.h5"
+        Basic.create_1d(NAME)
+
+        f = zh5.File(NAME)
+        print(f.attrs)
+        print(f["1d"].attrs)
+        os.remove(NAME)
+
+    def test_shape(self):
+        NAME = "https://api.cloud.ifca.es:8080/swift/v1/tests/ch330a.pc19790301-def-short-page.nc"
+        f = zh5.PagedFile(NAME)
+        for v in list(f):
+            print(f[v].shape)
+        f.close()
 
 
 if __name__ == "__main__":
