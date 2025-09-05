@@ -27,15 +27,21 @@ class Basic(unittest.TestCase):
             f["2d"][...] = np.arange(100).reshape((10, 10))
 
     @staticmethod
-    def create_vds(name):
+    def create_vds(name, vds):
         with h5py.File(name, "w") as f:
             f.create_dataset("2d", dtype="i4", shape=(10, 10), chunks=(3, 3), compression="gzip", compression_opts=9)
             f["2d"][...] = np.arange(100).reshape((10, 10))
 
+        with h5py.File(vds , "w") as f:
             vs = h5py.VirtualSource(name, "2d", shape=(10, 10))
-            vl = h5py.VirtualLayout(shape=vs.shape, dtype=f["2d"].dtype)
+            vl = h5py.VirtualLayout(shape=vs.shape, dtype="i4")
             vl[...] = vs[...]
-            f.create_virtual_dataset("vds", vl)
+            f.create_virtual_dataset("all", vl)
+
+            vs = h5py.VirtualSource(name, "2d", shape=(10,10))
+            vl = h5py.VirtualLayout(shape=(10,10), dtype="i4")
+            vl[0] = vs[0]
+            f.create_virtual_dataset("test", vl)
 
     def test_1d(self):
         NAME = "1d.h5"
@@ -70,13 +76,17 @@ class Basic(unittest.TestCase):
 
     def test_vds(self):
         NAME = "VDS.h5"
-        Basic.create_vds(NAME)
+        VDS = "VDS_vds.h5"
+        Basic.create_vds(NAME, VDS)
 
-        f = zh5.File(NAME)
+        f = zh5.File(VDS)
         print(list(f))
-        print(f["vds"])
+        #f["all"].references()
+        #f["test"].references()
+        print(f["all"][:])
 
         os.remove(NAME)
+        os.remove(VDS)
 
     def test_list_links(self):
         NAME = "1d.h5"

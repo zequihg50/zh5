@@ -922,7 +922,7 @@ class Group:
                     dataspace = DataspaceMessage(self._f, m["offset"])
                 elif m["type"] == 0x0008:  # layout message
                     self._f.seek(m["offset"])
-                    version = int.from_bytes(self._f.read(1))
+                    version = int.from_bytes(self._f.read(1), "little")
                     if version == 1:
                         raise NotImplementedError
                     elif version == 2:
