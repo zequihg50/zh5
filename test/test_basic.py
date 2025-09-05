@@ -84,6 +84,8 @@ class Basic(unittest.TestCase):
         #f["all"].references()
         #f["test"].references()
         print(f["all"][:])
+        print(f["all"][0])
+        print(f["all"][0,0])
 
         os.remove(NAME)
         os.remove(VDS)

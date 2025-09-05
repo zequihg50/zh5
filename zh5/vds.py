@@ -27,7 +27,7 @@ class SingleSourceSingleVirtualMapping(VdsMapping):
         f = zh5.File(self._source_file)
         d = f[self._source_dataset]
 
-        return d[:]
+        return d[item]
 
 
 class VirtualDataset(Dataset):
@@ -47,7 +47,7 @@ class VirtualDataset(Dataset):
         self._heap = GlobalHeapCollection(self._f, self._address)
 
         self._mapping = None
-        self.references()
+        self._references()
 
     @property
     def address(self):
@@ -57,7 +57,7 @@ class VirtualDataset(Dataset):
     def index(self):
         return self._index
 
-    def references(self):
+    def _references(self):
         o = self._heap[self._index - 1]
         version = o.data[0]
         num_entries = int.from_bytes(o.data[1:1 + self._f.size_of_lengths], "little")
