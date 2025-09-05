@@ -26,8 +26,10 @@ class SingleSourceSingleVirtualMapping(VdsMapping):
     def read(self, item):
         f = zh5.File(self._source_file)
         d = f[self._source_dataset]
+        arr = d[item]
+        f.close()
 
-        return d[item]
+        return arr
 
 
 class HyperMapping(VdsMapping):
