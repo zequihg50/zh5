@@ -30,6 +30,14 @@ class SingleSourceSingleVirtualMapping(VdsMapping):
         return d[item]
 
 
+class HyperMapping(VdsMapping):
+    def __init__(self, vds):
+        pass
+
+    def read(self, item):
+        pass
+
+
 class VirtualDataset(Dataset):
     def __init__(self, file, do, name=None, dataspace=None, layout=None):
         super().__init__(file, do, name, dataspace)
@@ -62,8 +70,8 @@ class VirtualDataset(Dataset):
         version = o.data[0]
         num_entries = int.from_bytes(o.data[1:1 + self._f.size_of_lengths], "little")
         byts = o.data[1 + self._f.size_of_lengths:]
+        print(byts)
 
-        # print(f"name: {self.name}, num_entries: {num_entries}")
         if num_entries == 1:
             # let's see if this is a single mapping single virtual
             frm, to = 0, 0
@@ -102,6 +110,7 @@ class VirtualDataset(Dataset):
                     virtual_selection_info = byts[frm:to]
                     virtual_selection_info_version = int.from_bytes(virtual_selection_info[:4], "little")
                     virtual_selection_info_reserved = int.from_bytes(virtual_selection_info[4:], "little")
+
                     if virtual_selection_info_version != 1:
                         raise ValueError(
                             f"Invalid source selection version (required 1, found {source_selection_info_version}")
@@ -110,8 +119,11 @@ class VirtualDataset(Dataset):
                             f"Invalid source selection bytes (required 0, found {source_selection_info_reserved}")
 
                     self._mapping = SingleSourceSingleVirtualMapping(self, source_fname, source_dname)
-        else:
-            raise NotImplementedError
+
+        # not single source single virtual, more complicated mapping
+        #if num_entries == 1 and source_selection_type ==
+
+
 
         # # move this to the different vds mappings?
         # for i in range(num_entries):

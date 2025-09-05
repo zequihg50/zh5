@@ -41,6 +41,7 @@ class Basic(unittest.TestCase):
             vs = h5py.VirtualSource(name, "2d", shape=(10,10))
             vl = h5py.VirtualLayout(shape=(10,10), dtype="i4")
             vl[0] = vs[0]
+            vl[1] = vs[-1]
             f.create_virtual_dataset("test", vl)
 
     def test_1d(self):
@@ -81,11 +82,12 @@ class Basic(unittest.TestCase):
 
         f = zh5.File(VDS)
         print(list(f))
-        #f["all"].references()
-        #f["test"].references()
+
         print(f["all"][:])
         print(f["all"][0])
         print(f["all"][0,0])
+
+        hyperslab = f["test"]
 
         os.remove(NAME)
         os.remove(VDS)
