@@ -68,15 +68,23 @@ class LinkInfoMessage(Link):
         else:
             raise ValueError("What?")
 
-        self._heap = FractalHeap(self._f, self._fractal_heap_address)
-        self._btree_name = BtreeV2(self._f, self._address_of_v2_btree_for_name_index)
-        self._btree_order = BtreeV2(self._f, self._address_of_v2_btree_for_creation_order_index)
+        if self._fractal_heap_address != self._f.undefined_address:
+            self._heap = FractalHeap(self._f, self._fractal_heap_address)
+            self._btree_name = BtreeV2(self._f, self._address_of_v2_btree_for_name_index)
+            self._btree_order = BtreeV2(self._f, self._address_of_v2_btree_for_creation_order_index)
+        else:
+            self._heap = None
+            self._btree_name = None
+            self._btree_order = None
 
     def solve(self):
-        for record in self._btree_order.records():
-            offset = self._heap.get_data(record["heap_id"])
-            l = LinkMessage(self._f, offset)
-            yield l
+        if self._btree_order is None:
+            return
+        else:
+            for record in self._btree_order.records():
+                offset = self._heap.get_data(record["heap_id"])
+                l = LinkMessage(self._f, offset)
+                yield l
 
 
 class LinkMessage(Link):
