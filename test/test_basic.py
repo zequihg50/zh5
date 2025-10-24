@@ -101,6 +101,14 @@ class Basic(unittest.TestCase):
         f.close()
         os.remove(NAME)
 
+    def test_btreev2(self):
+        NAME = "btreev2.h5"
+        # NAME = '/home/zequi/github/ncas/pyfive/tests/btreev2.hdf5'
+
+        f = zh5.File(NAME)
+        d = f["btreev2"][:]
+        f.close()
+
 
 if __name__ == "__main__":
     unittest.main()

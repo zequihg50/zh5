@@ -928,9 +928,9 @@ class Group:
                     elif version == 2:
                         raise NotImplementedError
                     elif version == 3:
-                        layout = DataLayoutMessageV3(self._f, m["offset"])
+                        layout = DataLayoutMessageV3(self._f, m["offset"], m["size"])
                     elif version == 4:
-                        layout = DataLayoutMessageV4(self._f, m["offset"])
+                        layout = DataLayoutMessageV4(self._f, m["offset"], m["size"])
                     else:
                         raise ValueError("Unknown Data Layout version.")
 

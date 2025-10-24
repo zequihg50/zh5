@@ -7,25 +7,35 @@ import numpy as np
 
 from zh5.codecs import FilterPipelineMessageV1, FilterPipelineMessageV2
 from zh5.dtypes import DatatypeMessage, FloatDatatype, VLStringDatatype, FixedPointDatatype
-from zh5.tree import BtreeV1Chunk
+from zh5.tree import BtreeV1Chunk, BtreeV2, BtreeV2Chunk
 from zh5.remote import HTTPRangeReader
 
 
-class DataLayoutMessageV1V2:
+class DataLayoutMessage:
+    @property
+    def address(self):
+        raise NotImplementedError
+
+
+class DataLayoutMessageV1V2(DataLayoutMessage):
     def __init__(self, fh, offset):
         pass
 
 
 class DataLayoutMessageV3:
-    def __init__(self, fh, offset):
+    def __init__(self, fh, offset, msize):
         self._fh = fh
         self._offset = offset
+        self._message_size = msize
 
         fh.seek(offset)
         byts = fh.read(2)
         self._properties_offset = fh.tell()
         assert byts[0] == self.version
         self._layout_class = byts[1]
+
+        # I have implemented this for v4 only
+        self._address = None
 
     @property
     def version(self):
@@ -39,17 +49,24 @@ class DataLayoutMessageV3:
     def properties_offset(self):
         return self._properties_offset
 
+    @property
+    def address(self):
+        return self._address
+
 
 class DataLayoutMessageV4:
-    def __init__(self, fh, offset):
+    def __init__(self, fh, offset, msize):
         self._fh = fh
         self._offset = offset
+        self._message_size = msize
 
         fh.seek(offset)
-        byts = fh.read(2)
-        self._properties_offset = fh.tell()
+        byts = fh.read(msize)
+        self._properties_offset = self._offset + 2
         assert byts[0] == self.version
         self._layout_class = byts[1]
+
+        self._address = int.from_bytes(byts[-self._fh.size_of_offsets:], "little")
 
     @property
     def version(self):
@@ -62,6 +79,10 @@ class DataLayoutMessageV4:
     @property
     def properties_offset(self):
         return self._properties_offset
+
+    @property
+    def address(self):
+        return self._address
 
 
 class DataspaceMessage:
@@ -397,9 +418,20 @@ class ChunkedDataset(Dataset):
     @property
     def btree(self):
         if self._btree is None:
-            for m in self._do.msgs():
-                if m["type"] == 8:
+            # for m in self._do.msgs():
+            #     if m["type"] == 8:
+            #         self._btree = BtreeV1Chunk(self._f, self.address, self)
+            if self._layout.version == 3 or self._layout.version == 4:
+                btree_address = self._layout.address
+                self._f.seek(btree_address)
+                signature = self._f.read(4)
+                if signature == b"TREE":
                     self._btree = BtreeV1Chunk(self._f, self.address, self)
+                elif signature == b"BTHD":
+                    btree = BtreeV2(self._f, btree_address, self)
+                    self._btree = BtreeV2Chunk(self._f, btree_address, btree)
+                else:
+                    raise ValueError("Unknown signature.")
 
         return self._btree
 

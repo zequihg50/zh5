@@ -139,10 +139,43 @@ class BtreeV1Group(BtreeV1):
                 yield entry
 
 
+# Non-filtered Dataset Chunks
+class BtreeV2RecordLayout10:
+    def __init__(self, file, offset, ndim):
+        self._f = file
+        self._o = offset
+        self._ndim = ndim
+
+        self._f.seek(self._o)
+        self._address = self._f.read(self._f.size_of_offsets)
+        self._scaled_offset_address = self._o + self._f.size_of_offsets
+
+    @property
+    def address(self):
+        return self._address
+
+    @property
+    def scaled_offset(self):
+        scaled_offset = []
+
+        self._f.seek(self._scaled_offset_address)
+        for i in range(self._ndim):
+            scaled_offset.append(
+                int.from_bytes(self._f.read(8), "little"))
+
+        return tuple(scaled_offset)
+
+
+# Filtered Dataset Chunks
+class BtreeV2RecordLayout11:
+    pass
+
+
 class BtreeV2:
-    def __init__(self, file, offset):
+    def __init__(self, file, offset, dataset):
         self._f = file
         self._f.seek(offset)
+        self._dataset = dataset
 
         byts = self._f.read(22 + self._f.size_of_offsets + self._f.size_of_lengths)
         assert byts[:4] == b"BTHD"
@@ -179,8 +212,28 @@ class BtreeV2:
     def nrecords(self):
         return self._number_of_records_in_root_node
 
+    @property
+    def dataset(self):
+        return self._dataset
+
     def records(self):
         yield from self._root_node.records()
+
+    @property
+    def btree_type(self):
+        # 0 	This B-tree is used for testing only. This value should not be used for storing records in actual HDF5 files.
+        # 1 	This B-tree is used for indexing indirectly accessed, non-filtered ‘huge’ fractal heap objects.
+        # 2 	This B-tree is used for indexing indirectly accessed, filtered ‘huge’ fractal heap objects.
+        # 3 	This B-tree is used for indexing directly accessed, non-filtered ‘huge’ fractal heap objects.
+        # 4 	This B-tree is used for indexing directly accessed, filtered ‘huge’ fractal heap objects.
+        # 5 	This B-tree is used for indexing the ‘name’ field for links in indexed groups.
+        # 6 	This B-tree is used for indexing the ‘creation order’ field for links in indexed groups.
+        # 7 	This B-tree is used for indexing shared object header messages.
+        # 8 	This B-tree is used for indexing the ‘name’ field for indexed attributes.
+        # 9 	This B-tree is used for indexing the ‘creation order’ field for indexed attributes.
+        # 10 	This B-tree is used for indexing chunks of datasets with no filters and with more than one dimension of unlimited extent.
+        # 11 	This B-tree is used for indexing chunks of datasets with filters and more than one dimension of unlimited extent.
+        return self._type
 
     def parse_record(self):  # de momento retorno dict, ya veré como hacer esto
         d = {}
@@ -232,7 +285,37 @@ class BtreeV2LeafNode:
 
 class BtreeV2InternalNode:
     def __init__(self, file, offset, tree):
-        pass
+        self._f = file
+        self._o = offset
+        self._tree = tree
+        self._signature = b"BTIN"
+
+        records_size = self._tree.record_size * self._tree.nrecords
+        self._f.seek(offset)
+        byts = self._f.read(6 + records_size)
+        assert byts[:4] == self._signature
+        self._version = byts[4]
+        self._type = byts[5]
+        self._child_node_pointers_offset = self._o + records_size
 
     def records(self):
+        self._f.seek(self._child_node_pointers_offset)
+        byts = self._f.read(4)
         yield 1
+
+
+class BtreeV2Chunk:
+    def __init__(self, file, offset, tree):
+        self._f = file
+        self._o = offset
+        self._tree = tree
+
+    def inspect_chunks(self, nodes=None):
+        # root node case
+        if nodes is None:
+            nnodes = self._tree.nrecords
+        else:
+            nnodes = nodes
+
+        pass
+        yield from self._tree.records()
