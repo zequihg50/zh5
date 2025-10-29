@@ -32,14 +32,14 @@ class Basic(unittest.TestCase):
             f.create_dataset("2d", dtype="i4", shape=(10, 10), chunks=(3, 3), compression="gzip", compression_opts=9)
             f["2d"][...] = np.arange(100).reshape((10, 10))
 
-        with h5py.File(vds , "w") as f:
+        with h5py.File(vds, "w") as f:
             vs = h5py.VirtualSource(name, "2d", shape=(10, 10))
             vl = h5py.VirtualLayout(shape=vs.shape, dtype="i4")
             vl[...] = vs[...]
             f.create_virtual_dataset("all", vl)
 
-            vs = h5py.VirtualSource(name, "2d", shape=(10,10))
-            vl = h5py.VirtualLayout(shape=(10,10), dtype="i4")
+            vs = h5py.VirtualSource(name, "2d", shape=(10, 10))
+            vl = h5py.VirtualLayout(shape=(10, 10), dtype="i4")
             vl[0] = vs[0]
             vl[1] = vs[-1]
             f.create_virtual_dataset("test", vl)
@@ -69,7 +69,7 @@ class Basic(unittest.TestCase):
         self.assertEqual(f["2d"][0, 0], 0)
         assert_array_equal(f["2d"][3:, 6:9], arr[3:, 6:9])
         assert_array_equal(f["2d"][8:, 8:], arr[-2:, -2:])
-        assert_array_equal(f["2d"][:3,:3], arr[:3, :3])
+        assert_array_equal(f["2d"][:3, :3], arr[:3, :3])
         # assert_array_equal(f["2d"][-2:, -2:], arr[-2:, -2:])
         f.close()
 
@@ -85,7 +85,7 @@ class Basic(unittest.TestCase):
 
         print(f["all"][:])
         print(f["all"][0])
-        print(f["all"][0,0])
+        print(f["all"][0, 0])
 
         hyperslab = f["test"]
 
@@ -107,6 +107,15 @@ class Basic(unittest.TestCase):
 
         f = zh5.File(NAME)
         d = f["btreev2"][:]
+        print(d.shape)
+        print(d)
+        f.close()
+
+    def test_bnl_btree(self):
+        NAME = "/home/zequi/Downloads/da193o_25_day__grid_T_198807-198807.nc"
+        f = zh5.File(NAME)
+        d = f["tos"]
+        print(d)
         f.close()
 
 

@@ -5,7 +5,9 @@ from collections import OrderedDict
 
 from zh5.remote import HTTPRangeReader
 from zh5.attr import AttributeMessage
-from zh5.dataset import DataspaceMessage, DataLayoutMessageV3, ChunkedDataset, ContiguousDataset, DataLayoutMessageV4
+from zh5.dataset import DataspaceMessage, DataLayoutMessageV3, ChunkedDataset, ContiguousDataset, DataLayoutMessageV4, \
+    DataLayoutMessageV4Chunked, DataLayoutMessageV3Chunked, DataLayoutMessageV3Contiguous, \
+    DataLayoutMessageV4Contiguous, DataLayoutMessageV4Virtual
 from zh5.heap import LocalHeap, GlobalHeap
 from zh5.link import LinkMessage, LinkInfoMessage, SimpleLink
 from zh5.tree import BtreeV1Group
@@ -928,9 +930,23 @@ class Group:
                     elif version == 2:
                         raise NotImplementedError
                     elif version == 3:
-                        layout = DataLayoutMessageV3(self._f, m["offset"], m["size"])
+                        l = DataLayoutMessageV3(self._f, m["offset"], m["size"])
+                        if l.layout_class == 1:
+                            layout = DataLayoutMessageV3Contiguous(self._f, l.properties_offset, l)
+                        elif l.layout_class == 2:
+                            layout = DataLayoutMessageV3Chunked(self._f, l.properties_offset, l)
+                        else:
+                            raise ValueError("Unknown layout class.")
                     elif version == 4:
-                        layout = DataLayoutMessageV4(self._f, m["offset"], m["size"])
+                        l = DataLayoutMessageV4(self._f, m["offset"], m["size"])
+                        if l.layout_class == 1:
+                            layout = DataLayoutMessageV4Contiguous(self._f, l.properties_offset, l)
+                        elif l.layout_class == 2:
+                            layout = DataLayoutMessageV4Chunked(self._f, l.properties_offset, l)
+                        elif l.layout_class == 3:
+                            layout = DataLayoutMessageV4Virtual(self._f, l.properties_offset, l)
+                        else:
+                            raise ValueError("Unknown layout class.")
                     else:
                         raise ValueError("Unknown Data Layout version.")
 

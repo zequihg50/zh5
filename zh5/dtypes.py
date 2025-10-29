@@ -42,6 +42,10 @@ class Datatype:
         raise NotImplementedError
 
     @property
+    def size(self):
+        raise NotImplementedError
+
+    @property
     def is_memmap(self):
         '''Can be backed by a numpy memmap when stored contiguously.'''
         return NotImplementedError
@@ -68,6 +72,10 @@ class FixedPointDatatype(Datatype):
         return f"{self._byte_order}i{self._m.size}"
 
     @property
+    def size(self):
+        return self._m.size
+
+    @property
     def is_memmap(self):
         return True
 
@@ -89,6 +97,10 @@ class FloatDatatype(Datatype):
         return dtype_string
 
     @property
+    def size(self):
+        return self._m.size
+
+    @property
     def is_memmap(self):
         return True
 
@@ -104,6 +116,10 @@ class VLStringDatatype(Datatype):
     @property
     def dtype(self):
         return "|O"
+
+    @property
+    def size(self):
+        return self._m.size
 
     @property
     def is_memmap(self):

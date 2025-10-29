@@ -44,31 +44,13 @@ class VirtualDataset(Dataset):
     def __init__(self, file, do, name=None, dataspace=None, layout=None):
         super().__init__(file, do, name, dataspace)
         self._layout = layout
-
-        self._f.seek(self._layout.properties_offset)
-        byts = self._f.read(self._f.size_of_offsets + 4)
-
-        # address of the global heap collection where the VDS mapping entries are stored
-        self._address = int.from_bytes(byts[:-4], "little")
-
-        # index of the data object within the global heap collection
-        self._index = int.from_bytes(byts[-4:], "little")
-
-        self._heap = GlobalHeapCollection(self._f, self._address)
-
         self._mapping = None
+
+        self._heap = GlobalHeapCollection(self._f, self._layout.address)
         self._references()
 
-    @property
-    def address(self):
-        return self._address
-
-    @property
-    def index(self):
-        return self._index
-
     def _references(self):
-        o = self._heap[self._index - 1]
+        o = self._heap[self._layout.index - 1]
         version = o.data[0]
         num_entries = int.from_bytes(o.data[1:1 + self._f.size_of_lengths], "little")
         byts = o.data[1 + self._f.size_of_lengths:]
@@ -123,9 +105,7 @@ class VirtualDataset(Dataset):
                     self._mapping = SingleSourceSingleVirtualMapping(self, source_fname, source_dname)
 
         # not single source single virtual, more complicated mapping
-        #if num_entries == 1 and source_selection_type ==
-
-
+        # if num_entries == 1 and source_selection_type ==
 
         # # move this to the different vds mappings?
         # for i in range(num_entries):
