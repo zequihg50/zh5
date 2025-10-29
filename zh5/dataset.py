@@ -59,6 +59,9 @@ class DataLayoutMessageV3Contiguous:
 
     @property
     def address(self):
+        if self._address == self._f.undefined_address:
+            return None
+
         return self._address
 
     @property
@@ -99,6 +102,9 @@ class DataLayoutMessageV3Chunked:
 
     @property
     def address(self):
+        if self._address == self._f.undefined_address:
+            return None
+
         return self._address
 
     @property
@@ -169,6 +175,9 @@ class DataLayoutMessageV4Chunked:
 
     @property
     def address(self):
+        if self._address == self._f.undefined_address:
+            return None
+
         return self._address
 
     @property
@@ -194,6 +203,9 @@ class DataLayoutMessageV4Virtual:
 
     @property
     def address(self):
+        if self._address == self._f.undefined_address:
+            return None
+
         return self._address
 
     @property

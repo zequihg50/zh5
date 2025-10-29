@@ -32,9 +32,38 @@ class SingleSourceSingleVirtualMapping(VdsMapping):
         return arr
 
 
+class HyperEntry:
+    def __init__(self, file, offset, vds):
+        self._f = file
+        self._o = offset
+        self._vds = vds
+
+
 class HyperMapping(VdsMapping):
-    def __init__(self, vds):
-        pass
+    def __init__(self, file, offset, vds, num_entries, byts):
+        self._f = file
+        self._o = offset
+        self._vds = vds
+        self._num_entries = num_entries
+
+        self._entries = []
+        self._f.seek(self._o)
+        for i in range(self._num_entries):
+            frm, to = 0, 0
+            while byts[to] != 0:
+                to += 1
+            source_fname = byts[frm:to].decode("ascii")
+
+            frm = to + 1
+            to = frm
+            while byts[to] != 0:
+                to += 1
+            source_dname = byts[frm:to].decode("ascii")
+
+            frm = to + 1
+            to = frm + 4
+            source_selection_type = int.from_bytes(byts[frm:to], "little")
+
 
     def read(self, item):
         pass
@@ -105,7 +134,8 @@ class VirtualDataset(Dataset):
                     self._mapping = SingleSourceSingleVirtualMapping(self, source_fname, source_dname)
 
         # not single source single virtual, more complicated mapping
-        # if num_entries == 1 and source_selection_type ==
+        else:
+            self._mapping = HyperMapping(self._f, self._layout.properties_offset, self, num_entries, byts)
 
         # # move this to the different vds mappings?
         # for i in range(num_entries):
