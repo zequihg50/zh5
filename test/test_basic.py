@@ -103,11 +103,19 @@ class Basic(unittest.TestCase):
 
     def test_btreev2(self):
         NAME = "btreev2.h5"
-        # NAME = '/home/zequi/github/ncas/pyfive/tests/btreev2.hdf5'
 
         f = zh5.File(NAME)
         d = f["btreev2"][:]
         a = np.arange(100 * 100, dtype="i4").reshape((100, 100))
+        assert_array_equal(a, d)
+        f.close()
+
+    def test_btreev2_chunk_filters(self):
+        NAME = "btreev2.h5"
+
+        f = zh5.File(NAME)
+        d = f["btreev2_filters"][:]
+        a = np.arange(100 * 100, dtype="f8").reshape((100, 100))
         assert_array_equal(a, d)
         f.close()
 

@@ -145,42 +145,6 @@ class BtreeV2Record:
         raise NotImplementedError()
 
 
-# Non-filtered Dataset Chunks
-class BtreeV2RecordLayout10:
-    def __init__(self, file, offset, ndim):
-        self._f = file
-        self._o = offset
-        self._ndim = ndim
-
-        self._f.seek(self._o)
-        self._address = self._f.read(self._f.size_of_offsets)
-        self._scaled_offset_address = self._o + self._f.size_of_offsets
-
-    @property
-    def size(self):
-        return self._f.size_of_offsets + self._ndim * 8
-
-    @property
-    def address(self):
-        return self._address
-
-    @property
-    def scaled_offset(self):
-        scaled_offset = []
-
-        self._f.seek(self._scaled_offset_address)
-        for i in range(self._ndim):
-            scaled_offset.append(
-                int.from_bytes(self._f.read(8), "little"))
-
-        return tuple(scaled_offset)
-
-
-# Filtered Dataset Chunks
-class BtreeV2RecordLayout11:
-    pass
-
-
 class BtreeV2:
     def __init__(self, file, offset, dataset=None):
         self._f = file
@@ -307,26 +271,52 @@ class BtreeV2LeafNode:
             raise ValueError("Depth must be 0 for a BTLF.")
 
         self._f.seek(self._record_offset)
-        for i in range(nnodes):
-            byts = self._f.read(self._tree.record_size)
-            # this is type 10 only
-            chunk_addr = int.from_bytes(byts[:8], "little")
+        if self._tree.type == 10:
+            for i in range(nnodes):
+                byts = self._f.read(self._tree.record_size)
+                # this is type 10 only
+                chunk_addr = int.from_bytes(byts[:8], "little")
 
-            chunk_offset_list = []
-            for j in range(self._tree.dataset.ndim):
-                frm = 8 + 8 * j
-                to = frm + 8
-                chunk_offset = int.from_bytes(byts[frm:to], "little") * self._tree.dataset.chunkshape[j]
-                chunk_offset_list.append(chunk_offset)
+                chunk_offset_list = []
+                for j in range(self._tree.dataset.ndim):
+                    frm = 8 + 8 * j
+                    to = frm + 8
+                    chunk_offset = int.from_bytes(byts[frm:to], "little") * self._tree.dataset.chunkshape[j]
+                    chunk_offset_list.append(chunk_offset)
 
-            d = {"offset": chunk_addr,
-                 "length": 4 * 10 * 10,  # sacar del dataset porque es tipo 10 (unfiltered chunk, 10x10 i4)
-                 "filter_mask": b"\x00" * 4,
-                 "chunk_offset": tuple(chunk_offset_list),
-                 "type": "chunk",
-                 "object": self._tree.dataset.name}
+                d = {"offset": chunk_addr,
+                     "length": 4 * 10 * 10,  # sacar del dataset porque es tipo 10 (unfiltered chunk, 10x10 i4)
+                     "filter_mask": b"\x00" * 4,
+                     "chunk_offset": tuple(chunk_offset_list),
+                     "type": "chunk",
+                     "object": self._tree.dataset.name}
 
-            yield d
+                yield d
+        elif self._tree.type == 11:
+            for i in range(nnodes):
+                byts = self._f.read(self._tree.record_size)
+                chunk_size_length = self._tree.record_size - self._tree.dataset.ndim * 8 - 8 - 4
+                chunk_addr = int.from_bytes(byts[:8], "little")
+                chunk_size = int.from_bytes(byts[8:8 + chunk_size_length], "little")
+                chunk_filter_mask = byts[8 + chunk_size_length:8 + chunk_size_length + 4]
+
+                chunk_offset_list = []
+                frm, to = 8 + chunk_size_length + 4, 8 + chunk_size_length + 4 + 8
+                for j in range(self._tree.dataset.ndim):
+                    chunk_offset = int.from_bytes(byts[frm:to], "little") * self._tree.dataset.chunkshape[j]
+                    chunk_offset_list.append(chunk_offset)
+
+                    frm += 8
+                    to += 8
+
+                d = {"offset": chunk_addr,
+                     "length": chunk_size,  # sacar del dataset porque es tipo 10 (unfiltered chunk, 10x10 i4)
+                     "filter_mask": chunk_filter_mask,
+                     "chunk_offset": tuple(chunk_offset_list),
+                     "type": "chunk",
+                     "object": self._tree.dataset.name}
+
+                yield d
 
 
 class BtreeV2InternalNode:
@@ -352,6 +342,7 @@ class BtreeV2InternalNode:
         while True:
             child_node_pointer = int.from_bytes(self._f.read(self._f.size_of_offsets), "little")
             number_of_records_child_node = int.from_bytes(self._f.read(1), "little")
+            total_number_of_records_child_node = None
             if depth > 1:
                 total_number_of_records_child_node = int.from_bytes(self._f.read(1), "little")
 
@@ -374,25 +365,54 @@ class BtreeV2InternalNode:
             self._f.seek(pos)
 
         self._f.seek(self._o + 6)
-        for i in range(nnodes):
-            byts = self._f.read(self._tree.record_size)
-            chunk_addr = int.from_bytes(byts[:8], "little")
+        if self._tree.type == 10:
+            for i in range(nnodes):
+                byts = self._f.read(self._tree.record_size)
+                chunk_addr = int.from_bytes(byts[:8], "little")
 
-            chunk_offset_list = []
-            for j in range(self._tree.dataset.ndim):
-                frm = 8 + 8 * j
-                to = frm + 8
-                chunk_offset = int.from_bytes(byts[frm:to], "little") * self._tree.dataset.chunkshape[j]
-                chunk_offset_list.append(chunk_offset)
+                chunk_offset_list = []
+                for j in range(self._tree.dataset.ndim):
+                    frm = 8 + 8 * j
+                    to = frm + 8
+                    chunk_offset = int.from_bytes(byts[frm:to], "little") * self._tree.dataset.chunkshape[j]
+                    chunk_offset_list.append(chunk_offset)
 
-            d = {"offset": chunk_addr,
-                 "length": 4 * 10 * 10,  # sacar del dataset porque es tipo 10 (unfiltered chunk, 10x10 i4)
-                 "filter_mask": b"\x00" * 4,
-                 "chunk_offset": tuple(chunk_offset_list),
-                 "type": "chunk",
-                 "object": self._tree.dataset.name}
+                chunk_length = self._tree.dataset.itemsize
+                for chunk_dim in self._tree.dataset.chunkshape:
+                    chunk_length *= chunk_dim
+                d = {"offset": chunk_addr,
+                     "length": 4 * 10 * 10,  # sacar del dataset porque es tipo 10 (unfiltered chunk, 10x10 i4)
+                     "filter_mask": b"\x00" * 4,
+                     "chunk_offset": tuple(chunk_offset_list),
+                     "type": "chunk",
+                     "object": self._tree.dataset.name}
 
-            yield d
+                yield d
+        elif self._tree.type == 11:
+            for i in range(nnodes):
+                byts = self._f.read(self._tree.record_size)
+                chunk_size_length = self._tree.record_size - self._tree.dataset.ndim * 8 - 8 - 4
+                chunk_addr = int.from_bytes(byts[:8], "little")
+                chunk_size = int.from_bytes(byts[8:8 + chunk_size_length], "little")
+                chunk_filter_mask = byts[8 + chunk_size_length:8 + chunk_size_length + 4]
+
+                chunk_offset_list = []
+                frm, to = 8 + chunk_size_length + 4, 8 + chunk_size_length + 4 + 8
+                for j in range(self._tree.dataset.ndim):
+                    chunk_offset = int.from_bytes(byts[frm:to], "little") * self._tree.dataset.chunkshape[j]
+                    chunk_offset_list.append(chunk_offset)
+
+                    frm += 8
+                    to += 8
+
+                d = {"offset": chunk_addr,
+                     "length": chunk_size,  # sacar del dataset porque es tipo 10 (unfiltered chunk, 10x10 i4)
+                     "filter_mask": chunk_filter_mask,
+                     "chunk_offset": tuple(chunk_offset_list),
+                     "type": "chunk",
+                     "object": self._tree.dataset.name}
+
+                yield d
 
 
 class BtreeV2Chunk:
@@ -402,5 +422,5 @@ class BtreeV2Chunk:
         self._tree = tree
 
     # https://github.com/HDFGroup/hdf5/blob/e5f526b62d3ca81ee281a68626beb5c3edd8dcc3/src/H5B2.c#L509
-    def inspect_chunks(self, nodes=None):
+    def inspect_chunks(self):
         yield from self._tree.inspect_chunks()
