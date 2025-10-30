@@ -27,15 +27,22 @@ class Basic(unittest.TestCase):
             f["2d"][...] = np.arange(100).reshape((10, 10))
 
     @staticmethod
-    def create_vds(name):
+    def create_vds(name, vds):
         with h5py.File(name, "w") as f:
             f.create_dataset("2d", dtype="i4", shape=(10, 10), chunks=(3, 3), compression="gzip", compression_opts=9)
             f["2d"][...] = np.arange(100).reshape((10, 10))
 
+        with h5py.File(vds, "w") as f:
             vs = h5py.VirtualSource(name, "2d", shape=(10, 10))
-            vl = h5py.VirtualLayout(shape=vs.shape, dtype=f["2d"].dtype)
+            vl = h5py.VirtualLayout(shape=vs.shape, dtype="i4")
             vl[...] = vs[...]
-            f.create_virtual_dataset("vds", vl)
+            f.create_virtual_dataset("all", vl)
+
+            vs = h5py.VirtualSource(name, "2d", shape=(10, 10))
+            vl = h5py.VirtualLayout(shape=(10, 10), dtype="i4")
+            vl[0] = vs[0]
+            vl[1] = vs[-1]
+            f.create_virtual_dataset("test", vl)
 
     def test_1d(self):
         NAME = "1d.h5"
@@ -62,7 +69,7 @@ class Basic(unittest.TestCase):
         self.assertEqual(f["2d"][0, 0], 0)
         assert_array_equal(f["2d"][3:, 6:9], arr[3:, 6:9])
         assert_array_equal(f["2d"][8:, 8:], arr[-2:, -2:])
-        assert_array_equal(f["2d"][:3,:3], arr[:3, :3])
+        assert_array_equal(f["2d"][:3, :3], arr[:3, :3])
         # assert_array_equal(f["2d"][-2:, -2:], arr[-2:, -2:])
         f.close()
 
@@ -70,13 +77,20 @@ class Basic(unittest.TestCase):
 
     def test_vds(self):
         NAME = "VDS.h5"
-        Basic.create_vds(NAME)
+        VDS = "VDS_vds.h5"
+        Basic.create_vds(NAME, VDS)
 
-        f = zh5.File(NAME)
+        f = zh5.File(VDS)
         print(list(f))
-        print(f["vds"])
+
+        print(f["all"][:])
+        print(f["all"][0])
+        print(f["all"][0, 0])
+
+        hyperslab = f["test"]
 
         os.remove(NAME)
+        os.remove(VDS)
 
     def test_list_links(self):
         NAME = "1d.h5"
@@ -86,6 +100,24 @@ class Basic(unittest.TestCase):
         assert_array_equal(list(f), ['1d', '1dchunks', '1dfilters'])
         f.close()
         os.remove(NAME)
+
+    def test_btreev2(self):
+        NAME = "btreev2.h5"
+
+        f = zh5.File(NAME)
+        d = f["btreev2"][:]
+        a = np.arange(100 * 100, dtype="i4").reshape((100, 100))
+        assert_array_equal(a, d)
+        f.close()
+
+    def test_btreev2_chunk_filters(self):
+        NAME = "btreev2.h5"
+
+        f = zh5.File(NAME)
+        d = f["btreev2_filters"][:]
+        a = np.arange(100 * 100, dtype="f8").reshape((100, 100))
+        assert_array_equal(a, d)
+        f.close()
 
 
 if __name__ == "__main__":

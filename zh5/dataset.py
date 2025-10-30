@@ -7,19 +7,26 @@ import numpy as np
 
 from zh5.codecs import FilterPipelineMessageV1, FilterPipelineMessageV2
 from zh5.dtypes import DatatypeMessage, FloatDatatype, VLStringDatatype, FixedPointDatatype
-from zh5.tree import BtreeV1Chunk
+from zh5.tree import BtreeV1Chunk, BtreeV2, BtreeV2Chunk
 from zh5.remote import HTTPRangeReader
 
 
-class DataLayoutMessageV1V2:
+class DataLayoutMessage:
+    @property
+    def address(self):
+        raise NotImplementedError
+
+
+class DataLayoutMessageV1V2(DataLayoutMessage):
     def __init__(self, fh, offset):
         pass
 
 
 class DataLayoutMessageV3:
-    def __init__(self, fh, offset):
+    def __init__(self, fh, offset, msize):
         self._fh = fh
         self._offset = offset
+        self._message_size = msize
 
         fh.seek(offset)
         byts = fh.read(2)
@@ -40,14 +47,84 @@ class DataLayoutMessageV3:
         return self._properties_offset
 
 
+class DataLayoutMessageV3Contiguous:
+    def __init__(self, f, o, layout):
+        self._f = f
+        self._o = o
+        self._layout = layout
+
+        self._f.seek(self._layout.properties_offset)
+        self._address = int.from_bytes(self._f.read(self._f.size_of_offsets), "little")
+        self._size = int.from_bytes(self._f.read(self._f.size_of_lengths), "little")
+
+    @property
+    def address(self):
+        if self._address == self._f.undefined_address:
+            return None
+
+        return self._address
+
+    @property
+    def size(self):
+        return self._size
+
+    @property
+    def layout_class(self):
+        return self._layout.layout_class
+
+
+class DataLayoutMessageV3Chunked:
+    def __init__(self, f, o, layout):
+        self._f = f
+        self._o = o
+        self._layout = layout
+
+        self._f.seek(self._layout.properties_offset)
+        self._dimensionality = int.from_bytes(self._f.read(1), "little")
+        self._address = int.from_bytes(self._f.read(self._f.size_of_offsets), "little")
+
+        byts = self._f.read(
+            4 * (self._dimensionality + 1 - 1))  # -1 because chunked dimensionality is +1 for whatever reason
+        chunkshape = list()
+        for i in range(0, len(byts) - 4, 4):
+            size = int.from_bytes(byts[i:i + 4], "little")
+            chunkshape.append(size)
+        self._chunkshape = tuple(chunkshape)
+        self._itemsize = int.from_bytes(byts[-4:], "little")
+
+    @property
+    def version(self):
+        return self._layout.version
+
+    @property
+    def dimensionality(self):
+        return self._dimensionality
+
+    @property
+    def address(self):
+        if self._address == self._f.undefined_address:
+            return None
+
+        return self._address
+
+    @property
+    def layout_class(self):
+        return self._layout.layout_class
+
+    @property
+    def chunkshape(self):
+        return self._chunkshape
+
+
 class DataLayoutMessageV4:
-    def __init__(self, fh, offset):
-        self._fh = fh
+    def __init__(self, fh, offset, msize):
+        self._f = fh
         self._offset = offset
+        self._message_size = msize
 
         fh.seek(offset)
-        byts = fh.read(2)
-        self._properties_offset = fh.tell()
+        byts = fh.read(msize)
+        self._properties_offset = self._offset + 2
         assert byts[0] == self.version
         self._layout_class = byts[1]
 
@@ -62,6 +139,82 @@ class DataLayoutMessageV4:
     @property
     def properties_offset(self):
         return self._properties_offset
+
+
+class DataLayoutMessageV4Contiguous(DataLayoutMessageV3Contiguous):
+    ...
+
+
+class DataLayoutMessageV4Chunked:
+    def __init__(self, f, o, layout):
+        self._f = f
+        self._o = o
+        self._layout = layout
+
+        self._f.seek(self._layout.properties_offset)
+        self._flags = self._f.read(1)
+        self._dimensionality = int.from_bytes(self._f.read(1), "little")
+        self._dimension_size_length = int.from_bytes(self._f.read(1), "little")
+
+        chunkshape = list()
+        for i in range(self._dimensionality):
+            dim_size = int.from_bytes(self._f.read(self._dimension_size_length), "little")
+            chunkshape.append(dim_size)
+        self._chunkshape = tuple(chunkshape[:-1])
+        self._chunk_indexing_type = int.from_bytes(self._f.read(1), "little")
+        self._indexing_type_info = int.from_bytes(self._f.read(6))  # 6 is hardcoded btree v2
+        self._address = int.from_bytes(self._f.read(self._f.size_of_offsets), "little")
+
+    @property
+    def version(self):
+        return self._layout.version
+
+    @property
+    def dimensionality(self):
+        return self._dimensionality
+
+    @property
+    def address(self):
+        if self._address == self._f.undefined_address:
+            return None
+
+        return self._address
+
+    @property
+    def layout_class(self):
+        return self._layout.layout_class
+
+    @property
+    def chunkshape(self):
+        return self._chunkshape
+
+
+class DataLayoutMessageV4Virtual:
+    def __init__(self, fh, o, layout):
+        self._f = fh
+        self._o = o
+        self._layout = layout
+
+        self._f.seek(self._layout.properties_offset)
+        # address of the global heap collection where the VDS mapping entries are stored
+        self._address = int.from_bytes(self._f.read(self._f.size_of_offsets), "little")
+        # index of the data object within the global heap collection
+        self._index = int.from_bytes(self._f.read(4), "little")
+
+    @property
+    def address(self):
+        if self._address == self._f.undefined_address:
+            return None
+
+        return self._address
+
+    @property
+    def index(self):
+        return self._index
+
+    @property
+    def layout_class(self):
+        return self._layout.layout_class
 
 
 class DataspaceMessage:
@@ -203,16 +356,11 @@ class ContiguousDataset(Dataset):
         super().__init__(file, do, name, dataspace)
         self._layout = layout
 
-        self._f.seek(self._layout.properties_offset)
-        byts = self._f.read(self._f.size_of_offsets + self._f.size_of_lengths)
-        self._address = int.from_bytes(byts[:self._f.size_of_offsets], "little")
-        self._size = int.from_bytes(byts[self._f.size_of_offsets:], "little")
-
     def inspect_chunks(self):
-        pass
+        pass  # remove?
 
     def __getitem__(self, item):
-        if self.address is None:
+        if self._address is None:
             raise ValueError(f"Uninitialized array: {self.name}.")  # ToDo return numpy array with fill value
 
         normalized_slice = self._normalize_hyperslab(item)
@@ -220,7 +368,7 @@ class ContiguousDataset(Dataset):
             if self._f.name.startswith("https://"):  # ToDo
                 fremote = HTTPRangeReader(self._f.raw_name)
                 fremote.seek(self._f.project_chunk(self._address))
-                buff = fremote.read(self._size)
+                buff = fremote.read(self._layout.size)
                 fremote.close()
                 arr = np.frombuffer(buff, self.dtype).reshape(self.shape)
                 return arr[tuple(normalized_slice)]
@@ -229,7 +377,7 @@ class ContiguousDataset(Dataset):
                     filename=self._f.name,
                     dtype=self.dtype,
                     shape=self.shape,
-                    offset=self.address,
+                    offset=self._address,
                     order="C")
                 return arr[tuple(normalized_slice)]
         else:
@@ -242,17 +390,17 @@ class ContiguousDataset(Dataset):
                 filename=self._f.name,
                 dtype=heap_arr_dtype,
                 shape=self.shape,
-                offset=self.address,
+                offset=self._address,
                 order="C")[tuple(normalized_slice)]
             arr = np.vectorize(self._dtype.parse)(heap_arr)
             return arr
 
     @property
-    def address(self):
-        if self._address == self._f.undefined_address:
-            return None  # storage not yet allocated for this array
+    def _address(self):
+        if self._layout.address == self._f.undefined_address:
+            return None
 
-        return self._address
+        return self._layout.address
 
 
 class LocalChunkReader:
@@ -347,27 +495,14 @@ class ChunkedDataset(Dataset):
     def __init__(self, file, do, name=None, dataspace=None, layout=None):
         super().__init__(file, do, name, dataspace)
         self._layout = layout
-
-        self._f.seek(self._layout.properties_offset)
-        byts = self._f.read(1 + self._f.size_of_offsets)
-        self._dimensionality = byts[0]  # this is the dimensionality of the chunk, not the dataset
-        self._address = int.from_bytes(byts[1:], "little")
-
-        byts = self._f.read(
-            4 * (self._dimensionality + 1 - 1))  # -1 because chunked dimensionality is +1 for whatever reason
-        chunkshape = list()
-        for i in range(0, len(byts) - 4, 4):
-            size = int.from_bytes(byts[i:i + 4], "little")
-            chunkshape.append(size)
-        self._chunkshape = tuple(chunkshape)
-        self._itemsize = int.from_bytes(byts[-4:], "little")
+        self._chunkshape = self._layout.chunkshape
 
         self._filter_pipeline = None
         self._btree = None
 
         # init the btree chunk cache
         self._btree_idx = {}
-        if self.address is not None:  # non initialized dataset
+        if self._layout.address is not None:  # non initialized dataset
             for chunk in self.btree.inspect_chunks():
                 chunk_offset = chunk["chunk_offset"]
                 self._btree_idx[chunk_offset] = (chunk["offset"], chunk["length"])
@@ -380,26 +515,30 @@ class ChunkedDataset(Dataset):
             self._cr = LocalChunkReader(self._f.raw_name, self)
 
     @property
-    def address(self):
-        if self._address == self._f.undefined_address:
-            return None
-
-        return self._address
-
-    @property
     def chunkshape(self):
         return self._chunkshape
 
     @property
     def itemsize(self):
-        return self._itemsize
+        return self._dtype.size
 
     @property
     def btree(self):
         if self._btree is None:
-            for m in self._do.msgs():
-                if m["type"] == 8:
-                    self._btree = BtreeV1Chunk(self._f, self.address, self)
+            # for m in self._do.msgs():
+            #     if m["type"] == 8:
+            #         self._btree = BtreeV1Chunk(self._f, self.address, self)
+            if self._layout.version == 3 or self._layout.version == 4:
+                btree_address = self._layout.address
+                self._f.seek(btree_address)
+                signature = self._f.read(4)
+                if signature == b"TREE":
+                    self._btree = BtreeV1Chunk(self._f, btree_address, self)
+                elif signature == b"BTHD":
+                    btree = BtreeV2(self._f, btree_address, self)
+                    self._btree = BtreeV2Chunk(self._f, btree_address, btree)
+                else:
+                    raise ValueError("Unknown signature.")
 
         return self._btree
 
@@ -488,7 +627,7 @@ class ChunkedDataset(Dataset):
         padded_shape = tuple(chunks.max(axis=0, initial=0) -
                              chunks.min(axis=0, initial=max(self.shape)) +
                              np.array(self.chunkshape))
-        data = np.empty(padded_shape, dtype="f4")
+        data = np.empty(padded_shape, dtype=self.dtype)
         chunk_origin = chunks.min(axis=0, initial=max(self.shape))
 
         matched_chunks = []
