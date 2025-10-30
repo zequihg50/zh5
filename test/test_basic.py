@@ -119,13 +119,6 @@ class Basic(unittest.TestCase):
         assert_array_equal(a, d)
         f.close()
 
-    def test_bnl_btree(self):
-        NAME = "/home/zequi/Downloads/da193o_25_day__grid_T_198807-198807.nc"
-        f = zh5.File(NAME)
-        d = f["tos"]
-        print(d)
-        f.close()
-
 
 if __name__ == "__main__":
     unittest.main()
