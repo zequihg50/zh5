@@ -520,7 +520,7 @@ class ChunkedDataset(Dataset):
 
     @property
     def itemsize(self):
-        return self.dtype.size
+        return self._dtype.size
 
     @property
     def btree(self):

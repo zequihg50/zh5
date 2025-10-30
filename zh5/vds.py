@@ -64,7 +64,6 @@ class HyperMapping(VdsMapping):
             to = frm + 4
             source_selection_type = int.from_bytes(byts[frm:to], "little")
 
-
     def read(self, item):
         pass
 
@@ -135,7 +134,8 @@ class VirtualDataset(Dataset):
 
         # not single source single virtual, more complicated mapping
         else:
-            self._mapping = HyperMapping(self._f, self._layout.properties_offset, self, num_entries, byts)
+            # self._mapping = HyperMapping(self._f, self._layout.properties_offset, self, num_entries, byts)
+            ...
 
         # # move this to the different vds mappings?
         # for i in range(num_entries):
