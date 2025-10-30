@@ -107,8 +107,8 @@ class Basic(unittest.TestCase):
 
         f = zh5.File(NAME)
         d = f["btreev2"][:]
-        print(d.shape)
-        print(d)
+        a = np.arange(100 * 100, dtype="i4").reshape((100, 100))
+        assert_array_equal(a, d)
         f.close()
 
     def test_bnl_btree(self):
