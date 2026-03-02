@@ -162,7 +162,7 @@ class DataLayoutMessageV4Chunked:
             chunkshape.append(dim_size)
         self._chunkshape = tuple(chunkshape[:-1])
         self._chunk_indexing_type = int.from_bytes(self._f.read(1), "little")
-        self._indexing_type_info = int.from_bytes(self._f.read(6))  # 6 is hardcoded btree v2
+        self._indexing_type_info = int.from_bytes(self._f.read(6), "little")  # 6 is hardcoded btree v2
         self._address = int.from_bytes(self._f.read(self._f.size_of_offsets), "little")
 
     @property
@@ -429,7 +429,7 @@ class HTTPChunkReader:
         self._dataset = dataset
 
     async def fetch_chunk(self, session, chunk_id, frm, length):
-        headers = {'Range': f'bytes={frm}-{frm + length}'}
+        headers = {'Range': f'bytes={frm}-{frm + length - 1}'}
         async with session.get(self._url, headers=headers) as response:
             byts = await response.read()
             if self._dataset.filter_pipeline:
@@ -464,7 +464,7 @@ class HTTPThreadedChunkReader:
         self._dataset = dataset
 
     def fetch_chunk(self, chunk_id, frm, length):
-        headers = {'Range': f'bytes={frm}-{frm + length}'}
+        headers = {'Range': f'bytes={frm}-{frm + length - 1}'}
         req = urllib.request.Request(self._url, headers=headers)
         with urllib.request.urlopen(req) as response:
             byts = response.read()
