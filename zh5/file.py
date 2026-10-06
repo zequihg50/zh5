@@ -304,7 +304,7 @@ class File:
         if name.startswith("http://") or name.startswith("https://"):
             self._fh = HTTPRangeReader(name)
         else:
-            self._fh = open(name, "rb", buffering=0)
+            self._fh = open(name, "rb", buffering=4096)
 
         self._read_strategy = SimpleFileReadStrategy(self._fh)
         self._root_group = None
@@ -408,7 +408,11 @@ class File:
     def _read_file_space_info(self):
         address = self._sb.superblock_extension_address
         self.seek(address)
-        object_header_version = int.from_bytes(self.read(1), "little")
+        byts = self.read(4)
+        if byts == b"OHDR":
+            object_header_version = 2
+        else:
+            object_header_version = int.from_bytes(self.read(1), "little")
 
         if object_header_version == 1:
             oh = ObjectHeaderV1(self, address)
@@ -431,6 +435,8 @@ class File:
                     raise ValueError("Unknown file space info message version.")
 
                 return file_space_info
+
+        return None
 
     def inspect_metadata(self):
         yield from self._root_group.inspect_metadata()

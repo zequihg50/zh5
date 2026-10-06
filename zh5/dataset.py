@@ -530,6 +530,7 @@ class ChunkedDataset(Dataset):
             #         self._btree = BtreeV1Chunk(self._f, self.address, self)
             if self._layout.version == 3 or self._layout.version == 4:
                 btree_address = self._layout.address
+                print(self.name, btree_address)
                 self._f.seek(btree_address)
                 signature = self._f.read(4)
                 if signature == b"TREE":
